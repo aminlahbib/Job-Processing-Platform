@@ -3,25 +3,6 @@
 Your complete project repository has been generated! Here's what you have:
 
 ---
-## Quick start 
-
-### Start the full app (builds all Go images from source)
-docker compose up --build
-
-### Start only Postgres + RabbitMQ (then run Go services with `go run` for faster dev)
-docker compose up postgres rabbitmq
-
-### With full observability stack
-docker compose --profile observability up --build
-
-### Test it
-curl http://localhost:8080/health
-curl -X POST http://localhost:8080/jobs \
-  -H "Content-Type: application/json" \
-  -d '{"type":"image","payload":"{}"}'
-
-### Tear down and wipe data volumes
-docker compose down -v
 
 ## 📦 What's Included
 
