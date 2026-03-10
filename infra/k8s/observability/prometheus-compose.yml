@@ -1,0 +1,28 @@
+# Prometheus scrape config for docker compose (service names used as hostnames)
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  - job_name: api-service
+    static_configs:
+      - targets: [api-service:8080]
+
+  - job_name: job-coordinator
+    static_configs:
+      - targets: [job-coordinator:8080]
+
+  - job_name: image-worker
+    static_configs:
+      - targets: [image-worker:8080]
+
+  - job_name: data-worker
+    static_configs:
+      - targets: [data-worker:8080]
+
+  - job_name: report-worker
+    static_configs:
+      - targets: [report-worker:8080]
