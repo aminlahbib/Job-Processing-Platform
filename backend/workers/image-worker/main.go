@@ -13,9 +13,9 @@ import (
 
 	"github.com/jpp/shared"
 	_ "github.com/lib/pq"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -178,7 +178,6 @@ func updateStatus(logger zerolog.Logger, db *sql.DB, jobID string, status shared
 		logger.Error().Err(err).Str("job_id", jobID).Msg("failed to update status")
 	}
 }
-
 
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {

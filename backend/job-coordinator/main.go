@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/jpp/shared"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
