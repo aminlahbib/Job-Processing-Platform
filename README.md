@@ -84,6 +84,6 @@ See [repoguide.md](repoguide.md) for the full 8-week learning roadmap.
 
 - Go 1.23+
 - Docker
-- kind (`brew install kind`)
-- kubectl (`brew install kubectl`)
-- Helm (`brew install helm`)
+- kind 
+- kubectl
+- Helm 
