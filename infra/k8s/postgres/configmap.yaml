@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: data
+data:
+  # This SQL runs automatically when the Postgres container starts for the first time.
+  # It matches scripts/db/init.sql — keep both in sync.
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS jobs (
+        id          TEXT        PRIMARY KEY,
+        type        TEXT        NOT NULL,
+        status      TEXT        NOT NULL DEFAULT 'pending',
+        payload     TEXT,
+        result      TEXT,
+        error       TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
+    CREATE INDEX IF NOT EXISTS idx_jobs_type   ON jobs (type);
+    CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs (created_at DESC);

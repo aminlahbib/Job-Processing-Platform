@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: data
+data:
+  # Enable the management plugin so the web UI is available on port 15672
+  enabled_plugins: |
+    [rabbitmq_management].
+  rabbitmq.conf: |
+    # Friendly node name
+    loopback_users.guest = false
+    listeners.tcp.default = 5672
+    management.listener.port = 15672
+    # Log to stdout for kubectl logs
+    log.console = true
+    log.console.level = info

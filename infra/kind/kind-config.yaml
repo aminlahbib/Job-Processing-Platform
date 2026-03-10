@@ -1,0 +1,23 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kind-job-platform
+nodes:
+  - role: control-plane
+    # extraPortMappings expose cluster NodePorts on localhost so you can access services
+    # without running kubectl port-forward for everything.
+    extraPortMappings:
+      - containerPort: 30080   # api-service
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30090   # prometheus
+        hostPort: 9090
+        protocol: TCP
+      - containerPort: 30030   # grafana
+        hostPort: 3000
+        protocol: TCP
+      - containerPort: 30686   # jaeger UI
+        hostPort: 16686
+        protocol: TCP
+      - containerPort: 30672   # rabbitmq management
+        hostPort: 15672
+        protocol: TCP

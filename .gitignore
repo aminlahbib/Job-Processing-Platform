@@ -1,0 +1,38 @@
+# Binaries
+bin/
+*.exe
+*.out
+
+# Go
+*.test
+coverage.out
+vendor/
+
+# Docker
+*.tar
+
+# K8s secrets (never commit real secrets)
+infra/k8s/**/*secret*.yaml
+!infra/k8s/**/*secret.example.yaml
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+Docs/**
+
+ti.md 

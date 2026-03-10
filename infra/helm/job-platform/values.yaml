@@ -1,0 +1,61 @@
+# Default values for job-platform Helm chart.
+# Override per environment: helm install -f values.prod.yaml
+
+global:
+  registry: localhost:5001
+  imageTag: latest
+
+apiService:
+  replicas: 1
+  image: api-service
+  port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+jobCoordinator:
+  replicas: 1
+  image: job-coordinator
+
+imageWorker:
+  replicas: 2
+  image: image-worker
+
+dataWorker:
+  replicas: 2
+  image: data-worker
+
+reportWorker:
+  replicas: 1
+  image: report-worker
+
+postgres:
+  enabled: true
+  user: jpp
+  password: jpp
+  database: jpp
+  storage: 1Gi
+
+rabbitmq:
+  enabled: true
+  user: guest
+  password: guest
+  storage: 500Mi
+
+redis:
+  enabled: true
+
+observability:
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+    adminPassword: admin
+  loki:
+    enabled: true
+  jaeger:
+    enabled: true

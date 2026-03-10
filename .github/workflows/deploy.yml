@@ -1,0 +1,42 @@
+name: Deploy
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Deploys on version tags (v*). For local kind: use make k8s-deploy-all after building images.
+# For GCP/GKE: add auth and helm upgrade steps (Week 8).
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kind and kubectl
+        uses: engineerd/setup-kind@v0.7.0
+        with:
+          version: v0.20.0
+
+      - name: Create cluster and deploy base
+        run: |
+          kind create cluster --name jpp-ci --config infra/kind/kind-config.yaml || true
+          kubectl apply -f infra/k8s/namespaces.yaml
+          kubectl apply -f infra/k8s/postgres/
+          kubectl apply -f infra/k8s/redis/
+          kubectl apply -f infra/k8s/rabbitmq/
+
+      - name: Build and load images into kind
+        run: |
+          docker build -t localhost:5001/api-service:latest -f infra/docker/api-service.Dockerfile .
+          docker build -t localhost:5001/job-coordinator:latest -f infra/docker/job-coordinator.Dockerfile .
+          docker build -t localhost:5001/image-worker:latest -f infra/docker/image-worker.Dockerfile .
+          docker build -t localhost:5001/data-worker:latest -f infra/docker/data-worker.Dockerfile .
+          docker build -t localhost:5001/report-worker:latest -f infra/docker/report-worker.Dockerfile .
+          kind load docker-image localhost:5001/api-service:latest localhost:5001/job-coordinator:latest localhost:5001/image-worker:latest localhost:5001/data-worker:latest localhost:5001/report-worker:latest --name jpp-ci
+
+      - name: Deploy application services
+        run: |
+          kubectl apply -f infra/k8s/services/
+          kubectl rollout status deployment/api-service -n app --timeout=120s || true

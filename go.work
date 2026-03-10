@@ -1,0 +1,10 @@
+go 1.23
+
+use (
+	./backend/shared
+	./backend/api-service
+	./backend/job-coordinator
+	./backend/workers/image-worker
+	./backend/workers/data-worker
+	./backend/workers/report-worker
+)

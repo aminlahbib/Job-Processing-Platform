@@ -1,0 +1,53 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: jpp
+          POSTGRES_PASSWORD: jpp
+          POSTGRES_DB: jpp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      - name: Download dependencies
+        run: |
+          go work sync
+          cd backend/api-service && go mod tidy
+          cd ../job-coordinator && go mod tidy
+          cd ../workers/image-worker && go mod tidy
+          cd ../data-worker && go mod tidy
+          cd ../report-worker && go mod tidy
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgres://jpp:jpp@localhost:5432/jpp?sslmode=disable
+        run: go test ./backend/shared/... ./backend/api-service/... ./backend/job-coordinator/... ./backend/workers/image-worker/... ./backend/workers/data-worker/... ./backend/workers/report-worker/... -v -timeout 120s
+
+      - name: Check formatting
+        run: |
+          gofmt -l ./backend/
+          test -z "$(gofmt -l ./backend/)"
