@@ -28,6 +28,7 @@ import (
 const queueName = "jobs.image"
 const workerType = "image"
 
+// Prometheus metrics
 var (
 	jobsCompletedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "jpp_jobs_completed_total", Help: "Total jobs completed by worker"},
@@ -65,6 +66,7 @@ func initTracer() (func(context.Context) error, error) {
 	otel.SetTracerProvider(tp)
 	return tp.Shutdown, nil
 }
+
 
 func main() {
 	zerolog.TimeFieldFormat = time.RFC3339
