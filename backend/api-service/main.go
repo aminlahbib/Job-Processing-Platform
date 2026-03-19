@@ -89,27 +89,34 @@ type App struct {
 }
 
 func main() {
+	//builds logger
 	zerolog.TimeFieldFormat = time.RFC3339
 	zl := zerolog.New(os.Stdout).With().Timestamp().Logger()
 	logger := zl.With().Str("service", "api-service").Logger()
 
+	//loads configuration
 	cfg := loadConfig()
 
+	//opens database connection
 	db, err := sql.Open("postgres", cfg.DatabaseURL)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to open database connection")
 	}
 	defer db.Close()
 
+	//pings database to check if it is reachable
 	if err := db.Ping(); err != nil {
 		logger.Warn().Err(err).Msg("cannot reach database at startup")
 	}
 
+	//opens RabbitMQ connection
 	var ch *amqp.Channel
 	conn, err := amqp.Dial(cfg.RabbitMQURL)
+	//checks if RabbitMQ connection is successful
 	if err != nil {
 		logger.Warn().Err(err).Msg("cannot connect to RabbitMQ at startup")
 	} else {
+		//closes RabbitMQ connection when app is shutdown
 		defer conn.Close()
 		ch, err = conn.Channel()
 		if err != nil {
@@ -122,14 +129,17 @@ func main() {
 		}
 	}
 
+	//creates app instance
 	app := &App{db: db, channel: ch, config: cfg, log: logger}
 
+	//initializes tracer
 	if shutdown, err := initTracer(); err != nil {
 		logger.Warn().Err(err).Msg("tracing disabled")
 	} else if shutdown != nil {
 		defer func() { _ = shutdown(context.Background()) }()
 	}
 
+	//creates Gin router
 	r := gin.Default()
 	r.GET("/health", app.healthHandler)
 	r.GET("/healthz", app.healthHandler) // K8s liveness probe alias
@@ -138,6 +148,7 @@ func main() {
 	r.GET("/jobs/:id", app.getJobHandler)
 	r.GET("/jobs", app.listJobsHandler)
 
+	//starts server
 	logger.Info().Str("port", cfg.Port).Msg("api-service starting")
 	if err := r.Run(":" + cfg.Port); err != nil {
 		logger.Fatal().Err(err).Msg("server failed")
@@ -147,13 +158,15 @@ func main() {
 // healthHandler returns service health and live dependency status.
 // Used as both the K8s liveness probe and a human-readable status endpoint.
 func (a *App) healthHandler(c *gin.Context) {
+	//builds response
 	resp := gin.H{
 		"service": "api-service",
 		"status":  "ok",
 		"time":    time.Now().UTC(),
 	}
+	//pings database to check if it is reachable
 	if err := a.db.Ping(); err != nil {
-		resp["database"] = "unreachable"
+		resp["database"] = "unreachable"	
 	} else {
 		resp["database"] = "ok"
 	}
@@ -170,31 +183,41 @@ func (a *App) healthHandler(c *gin.Context) {
 // POST /jobs
 // Body: {"type":"image|data|report","payload":"<json string>"}
 func (a *App) createJobHandler(c *gin.Context) {
+	//gets request context
 	ctx := c.Request.Context()
+	//creates tracer
 	tr := otel.Tracer("api-service")
+	//starts span
 	ctx, span := tr.Start(ctx, "createJob")
 	defer span.End()
 
+	//binds request body to struct
 	var req struct {
 		Type    shared.JobType `json:"type" binding:"required"`
 		Payload string         `json:"payload"`
 	}
+	//checks if request body is valid
 	if err := c.ShouldBindJSON(&req); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	//sets span attributes
 	span.SetAttributes(attribute.String("job.type", string(req.Type)))
 
+	//checks if job type is valid
 	switch req.Type {
 	case shared.JobTypeImage, shared.JobTypeData, shared.JobTypeReport:
 	default:
+		//returns bad request if job type is invalid
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unknown job type %q", req.Type)})
 		return
 	}
 
+	//creates job
 	now := time.Now().UTC()
+	//creates job struct
 	job := shared.Job{
 		ID:        uuid.New().String(),
 		Type:      req.Type,
@@ -204,23 +227,30 @@ func (a *App) createJobHandler(c *gin.Context) {
 		UpdatedAt: now,
 	}
 
+	//inserts job into database
 	_, err := a.db.ExecContext(ctx,
 		`INSERT INTO jobs (id, type, status, payload, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		job.ID, job.Type, job.Status, job.Payload, job.CreatedAt, job.UpdatedAt,
 	)
+	//checks if database insert is successful
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "db insert failed")
 		a.log.Error().Err(err).Str("job_id", job.ID).Str("trace_id", span.SpanContext().TraceID().String()).Msg("db insert failed")
+		//returns internal server error if database insert is unsuccessful
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist job"})
 		return
 	}
+	//sets span attributes
 	span.SetAttributes(attribute.String("job.id", job.ID))
 
+	//checks if RabbitMQ channel is open
 	if a.channel != nil {
+		//creates job message
 		msg := shared.JobMessage{JobID: job.ID, Type: job.Type, Payload: job.Payload}
 		body, _ := json.Marshal(msg)
+		//publishes job message to RabbitMQ
 		if err = a.channel.Publish("", "jobs.pending", false, false, amqp.Publishing{
 			ContentType:  "application/json",
 			DeliveryMode: amqp.Persistent,
@@ -230,47 +260,61 @@ func (a *App) createJobHandler(c *gin.Context) {
 		}
 	}
 
+	//increments jobs submitted total metric
 	jobsSubmittedTotal.WithLabelValues(string(job.Type)).Inc()
+	//logs job submitted
 	a.log.Info().Str("job_id", job.ID).Str("type", string(job.Type)).Str("trace_id", span.SpanContext().TraceID().String()).Msg("job submitted")
+	//returns created status with job
 	c.JSON(http.StatusCreated, job)
 }
 
 // getJobHandler returns a single job by ID.
 // GET /jobs/:id
 func (a *App) getJobHandler(c *gin.Context) {
+	//gets job ID from request
 	id := c.Param("id")
+	//queries database for job
 	var job shared.Job
 	err := a.db.QueryRow(
 		`SELECT id, type, status, payload, result, error, created_at, updated_at
 		 FROM jobs WHERE id = $1`, id,
 	).Scan(&job.ID, &job.Type, &job.Status, &job.Payload, &job.Result, &job.Error, &job.CreatedAt, &job.UpdatedAt)
 
+	//checks if job is not found
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
 		return
 	}
+	//checks if database query is successful
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	//returns ok status with job
 	c.JSON(http.StatusOK, job)
 }
 
 // listJobsHandler returns the 100 most recent jobs.
 // GET /jobs
 func (a *App) listJobsHandler(c *gin.Context) {
+	//queries database for jobs
 	rows, err := a.db.Query(
 		`SELECT id, type, status, payload, result, error, created_at, updated_at
 		 FROM jobs ORDER BY created_at DESC LIMIT 100`,
 	)
+	//checks if database query is successful
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	//closes rows when function returns
 	defer rows.Close()
 
+	//creates jobs slice
 	jobs := []shared.Job{}
+	//iterates over rows
 	for rows.Next() {
+		//scans row into job struct
 		var j shared.Job
 		if err := rows.Scan(&j.ID, &j.Type, &j.Status, &j.Payload, &j.Result, &j.Error, &j.CreatedAt, &j.UpdatedAt); err != nil {
 			a.log.Error().Err(err).Msg("row scan error")
@@ -278,9 +322,11 @@ func (a *App) listJobsHandler(c *gin.Context) {
 		}
 		jobs = append(jobs, j)
 	}
+	//returns ok status with jobs and count
 	c.JSON(http.StatusOK, gin.H{"jobs": jobs, "count": len(jobs)})
 }
 
+// gets environment variable or returns fallback
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
