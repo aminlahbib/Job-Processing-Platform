@@ -28,62 +28,66 @@ Client → api-service → RabbitMQ → job-coordinator → workers (image/data/
 - Loki — structured log aggregation
 - Jaeger — distributed tracing
 
-## Quick Start
+## Quick Start (Local Docker, No Kubernetes)
 
 ```bash
-# 1. Check all prerequisites and create the local K8s cluster
+# Start app + observability locally
+docker compose --profile observability up --build
+
+# Test API
+curl http://localhost:8080/health
+```
+
+Local UIs:
+- API: `http://localhost:8080`
+- RabbitMQ: `http://localhost:15672` (`guest/guest`)
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` (`admin/admin`)
+- Jaeger: `http://localhost:16686`
+
+Grafana dashboards are auto-provisioned in the `JPP` folder:
+- `JPP Overview`
+- `JPP Job Throughput & Latency`
+- `JPP Logs`
+
+Stop everything:
+
+```bash
+docker compose down
+
+# Wipe volumes too (fresh start)
+docker compose down -v
+```
+
+## Quick Start (Kubernetes)
+
+```bash
+# 1. Check prerequisites and create local kind cluster
 make setup
 
-# 2. Deploy everything to Kubernetes
+# 2. Deploy everything
 make k8s-deploy-all
 
 # 3. Check cluster status
 make k8s-status
-
-# 4. Port-forward the API and test it
-make api-port-forward &
-curl http://localhost:8080/health
 ```
 
-## Run a Service Locally (faster iteration)
+## Run a Service Locally (Faster Iteration)
 
 ```bash
 # Keep data services in K8s
 make k8s-up
 make k8s-deploy-data
 
-# Run the API locally
+# Run API locally
 cd backend/api-service
 go run main.go
 ```
-
-## All Commands
-
-```bash
-make help
-```
-
-## Documentation
-
-**Full project report:** [docs/PROJECT_REPORT.md](docs/PROJECT_REPORT.md) — what the project does, how it works, how to navigate it, and how to proceed with learning/development.
-
-See also the `docs/` directory:
-- [SETUP.md](docs/SETUP.md) — detailed setup instructions
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design
-- [LOCAL_DEV.md](docs/LOCAL_DEV.md) — local development workflow
-- [K8S_CONCEPTS.md](docs/K8S_CONCEPTS.md) — Kubernetes concepts explained
-- [OBSERVABILITY.md](docs/OBSERVABILITY.md) — metrics, logs, traces
-- [API_REFERENCE.md](docs/API_REFERENCE.md) — endpoint documentation
-- [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common issues
-
-## Learning Path
-
-See [repoguide.md](repoguide.md) for the full 8-week learning roadmap.
 
 ## Prerequisites
 
 - Go 1.23+
 - Docker
-- kind 
-- kubectl
-- Helm 
+- kind (for Kubernetes path)
+- kubectl (for Kubernetes path)
+- Helm (for Kubernetes path)
